@@ -1,12 +1,11 @@
 package controllers
 
 import (
-	// "go/token"
 	"net/http"
 	"os"
+	"regexp"
+	"strconv"
 	"time"
-
-	// "os/user"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
@@ -25,6 +24,19 @@ func Signup(c *gin.Context) {
 	if c.Bind(&body) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 
+		return
+	}
+
+	// Validate Email
+	emailRegex := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	if !regexp.MustCompile(emailRegex).MatchString(body.Email) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid email format"})
+		return
+	}
+
+	// Validate Password length
+	if len(body.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must be at least 8 characters long"})
 		return
 	}
 
@@ -49,7 +61,6 @@ func Signup(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "user created successfully"})
 
-	// Respose 
 }
 
 func Login(c *gin.Context) {
@@ -65,12 +76,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Loop up requested user
+	// Look up requested user
 	var user models.User
 	initializers.DB.First(&user, "email = ?", body.Email)
 
 	if user.ID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 
 		return
 	}
@@ -84,17 +95,22 @@ func Login(c *gin.Context) {
 		return
 	}
 	// Generate JWT token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": user.ID,
-		"exp":   time.Now().Add(time.Hour * 24 * 30).Unix(),
-		})
-	
+	jwtExpirationHoursStr := os.Getenv("JWT_EXPIRATION_HOURS")
+	expirationHours, err := strconv.Atoi(jwtExpirationHoursStr)
+	if err != nil || expirationHours <= 0 {
+		expirationHours = 720 // Default to 30 days (720 hours)
+	}
 
-	// Sign and get the complete encoded token as a string using the secrete key
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": user.ID,
+		"exp": time.Now().Add(time.Hour * time.Duration(expirationHours)).Unix(),
+	})
+
+	// Sign and get the complete encoded token as a string using the secret key
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to sign token"})
 
 		return
 	}

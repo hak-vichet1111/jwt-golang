@@ -2,7 +2,7 @@ package initializers
 
 import "go-jwt.com/models"
 
-func SynDatabase() {
+func SyncDatabase() {
   // Migrate the schema
   DB.AutoMigrate(&models.User{})
 }
