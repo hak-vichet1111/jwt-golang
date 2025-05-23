@@ -24,6 +24,16 @@ func main() {
 	r.POST("/login", controllers.Login)
 	r.GET("/validate", middleware.RequireAuth, controllers.Validate)
 
+	// User routes (protected)
+	userRoutes := r.Group("/users")
+	userRoutes.Use(middleware.RequireAuth)
+	{
+		userRoutes.GET("", controllers.GetUsers)
+		userRoutes.GET("/:id", controllers.GetUser)
+		userRoutes.PUT("/:id", controllers.UpdateUser)
+		userRoutes.DELETE("/:id", controllers.DeleteUser)
+	}
+
 	// r.GET("/ping", func(c *gin.Context) {
 	// 	c.JSON(200, gin.H{
 	// 		"message": "pong",
